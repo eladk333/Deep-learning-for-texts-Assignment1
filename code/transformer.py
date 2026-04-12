@@ -15,8 +15,10 @@ class TransformerDecoderBlock(nn.Module):
 
     def forward(self, inputs):
         if self.with_residuals:
-            raise Exception("Not implemented")
-            # TODO add residuals support.
+            x = inputs
+            attention_input = self.layer_norm_1(x) # 
+            attention_output = self.causal_attention(attention_input)
+            x = x + attention_output
         else:
             x = inputs
             x = self.layer_norm_1(x)
@@ -28,18 +30,20 @@ class TransformerDecoderBlock(nn.Module):
 class Embed(nn.Module):
     def __init__(self, vocab_size: int, embed_size: int, max_context_len):
         super().__init__()
-        self.token_embeddings = nn.Embedding(0, 0) # TODO set the right values
-        self.position_embeddings = nn.Embedding(0, 0) # TODO set the right values
+        self.token_embeddings = nn.Embedding(vocab_size, embed_size) # Embedded matrix needs 1 row for each vocab each in size of embed_size
+        self.position_embeddings = nn.Embedding(max_context_len, embed_size) # Needs one row per possible position up to the max_context each of size embed_size
         self.max_context_len = max_context_len
 
     def forward(self, x):
-        raise Exception("Not implemented") # TODO implement.
+        
         # x has the shape (b x n) where b is batch dimension and n is sequence length.
-        # each item is an int, indicating a vocabulary item.
-        # The output should be of shape (b x n x d), where d is the embedding dimension.
-        #tok_embeddings = 
-        #pos_embeddings = ...
-        return tok_embeddings + pos_embeddings
+        # each item is an int, indicating a vocabulary item.        
+        b, n = x.shape
+        tok_embeddings = self.token_embeddings(x)# We embed it with the embedded matrix and get's dim of (b, n, d)
+        positions = torch.arange(n, device=x.device) # Created a list of numberd from 0 to the length of the sequence n-1, stores it on the same device as x to save overhead
+        pos_embeddings = self.position_embeddings(positions) # Attachs each token so it's position in the sequence (n, d)
+        return tok_embeddings + pos_embeddings  # Uses boardcasting and treats pos_embeddings as (1,n,d)
+        
 
 
 class TransformerLM(nn.Module):
