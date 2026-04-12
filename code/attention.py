@@ -6,25 +6,27 @@ import math
 
 
 def create_kqv_matrix(input_vector_dim, n_heads = 1):
-    head_dim = input_vector_dim // n_heads
-    return nn.Linear(input_vector_dim, 3*head_dim) 
-    
+    return nn.Linear(input_vector_dim, 3* (input_vector_dim // n_heads)) 
 
-def kqv(x, linear):
-    projected = linear(x) # size is (b x n x 3*head_dim)
-    k, q, v = projected.chunk(3, dim=-1) # each of size (b x n x head_dim)
+def kqv(x, linear):    
+    B, N, D = x.size()
+    kqv_combined = linear(x) # size is (b, n, 3*d)
+    size = kqv_combined.size(-1) // 3
+    k, q, v = torch.split(kqv_combined, size, dim=-1) # size of each is (b, n, d)
     return k, q, v
 
-def attention_scores(a, b):
-    
-
+def attention_scores(a, b):    
     B1, N1, D1 = a.size()
     B2, N2, D2 = b.size()
     assert B1 == B2
     assert D1 == D2
 
-    a_transposed = a.transpose(1, 2) # now size is (b x d x n)
-    A = torch.bmm(b, a_transposed) / math.sqrt(D1) # size is (b x n x n)
+    k_transposed = a.transpose(1, 2) # changes from (B, N1, D1) to (B, D1, N1)
+
+    raw_scores = b @ k_transposed # size is (B, N2, N1)
+
+    A = raw_scores / math.sqrt(D1) # Scaling
+    
     return A
 
 def create_causal_mask(embed_dim, n_heads, max_context_len):
@@ -35,15 +37,16 @@ def create_causal_mask(embed_dim, n_heads, max_context_len):
     return mask
 
 def self_attention(v, A, mask = None):
-
     if mask is not None:
         N = A.size(-1) 
         M = mask[:, :N, :N]
 
         A = A.masked_fill(M == 0, float("-inf"))
-    
+        
     attention_weights = F.softmax(A, dim=-1)
-    sa = torch.bmm(attention_weights, v) # size is (b x n x head_dim)
+
+    sa = attention_weights @ v
+
     return sa
 
 
@@ -53,15 +56,23 @@ def self_attention_layer(x, kqv_matrix, attention_mask):
     sa = self_attention(v, att, attention_mask)
     return sa
 
-def multi_head_attention_layer(x, kqv_matrices, mask):
+def multi_head_attention_layer(x, kqv_matrices, mask, out_matrix=None):
+    
+    B, N, D = x.size()
+
     head_outputs = []
 
+    # Loop through each head's distinct linear layer
     for kqv_matrix in kqv_matrices:
-        sa = self_attention_layer(x, kqv_matrix, mask)
-        head_outputs.append(sa)
+        sa_head = self_attention_layer(x, kqv_matrix, mask)
+        head_outputs.append(sa_head)
 
-    sa = torch.cat(head_outputs, dim=-1) # concatenate the outputs of the heads along the last dimension 
+    sa = torch.cat(head_outputs, dim=-1)
+    
     assert sa.size() == x.size()
+    
+    if out_matrix is not None:
+        sa = out_matrix(sa)
     return sa
 
 
@@ -72,6 +83,7 @@ class CausalSelfAttention(nn.Module):
         # the linear layers used for k, q, v computations:
         # each linear is for a different head, but for all of k, q and v for this head.
         self.kqv_matrices = nn.ModuleList([create_kqv_matrix(embed_dim, n_heads) for i in range(n_heads)])
+        self.out_proj = nn.Linear(embed_dim, embed_dim)
         # For use in the causal part.  "register_buffer" is used to store a tensor which is fixed but is not a parameter of the model.
         # You can then access it with: self.mask
         mask = create_causal_mask(embed_dim, n_heads, max_context_len)
@@ -79,11 +91,6 @@ class CausalSelfAttention(nn.Module):
         self.n_heads = n_heads
         self.embed_dim = embed_dim
 
-        # Add the final linear projection layer (d dimensions to d dimensions)
-        self.out_proj = nn.Linear(embed_dim, embed_dim)
-
     def forward(self, x):
         sa = multi_head_attention_layer(x, self.kqv_matrices, self.mask)
-        # Apply the final projection to the concatenated multi-head output
-        output = self.out_proj(sa)
-        return output
+        return sa
