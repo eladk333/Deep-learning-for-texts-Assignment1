@@ -50,16 +50,16 @@ if __name__ == "__main__":
             num_batches = num_batches + 1
 
             batch_x, batch_y = lm.batch_to_labeled_samples(batch)
-
+            # The apple is very pretty
             logits = model(batch_x)
 
             loss = lm.compute_loss(logits, batch_y)
 
             # parameters update
-            model.zero_grad()
-            loss.backward()
-            torch.nn.utils.clip_grad_norm_(model.parameters(), gradient_clipping)
-            optimizer.step()
+            model.zero_grad() # Cleaning the gradient of parameters
+            loss.backward() # Backpropagation
+            torch.nn.utils.clip_grad_norm_(model.parameters(), gradient_clipping) # cliping to avoid exploding gradients
+            optimizer.step() # Updating the parameters with the optimizer the 'strategy to walk'
 
             num_batches += 1
             if num_batches % 10 == 0:

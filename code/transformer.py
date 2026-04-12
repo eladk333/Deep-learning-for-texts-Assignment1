@@ -5,20 +5,35 @@ import attention
 import mlp
 
 class TransformerDecoderBlock(nn.Module):
-    def __init__(self, n_heads: int, embed_size: int, mlp_hidden_size: int, max_context_len, with_residuals: bool = False):
+    def __init__(self, n_heads: int, embed_size: int, mlp_hidden_size: int, max_context_len, with_residuals: bool = False, norm_type: str = "pre"):
         super().__init__()
         self.causal_attention = attention.CausalSelfAttention(embed_size, n_heads, max_context_len)
         self.mlp = mlp.MLP(embed_size, mlp_hidden_size)
         self.layer_norm_1 = nn.LayerNorm(embed_size)
         self.layer_norm_2 = nn.LayerNorm(embed_size)
         self.with_residuals = with_residuals
+        self.norm_type = norm_type
 
     def forward(self, inputs):
+
         if self.with_residuals:
-            x = inputs
-            attention_input = self.layer_norm_1(x) # 
-            attention_output = self.causal_attention(attention_input)
-            x = x + attention_output
+            if(self.norm_type == "pre"):
+                x = inputs
+                attention_input = self.layer_norm_1(x) # 
+                attention_output = self.causal_attention(attention_input)
+                x = x + attention_output
+                mlp_input = self.layer_norm_2(x)
+                mlp_output = self.mlp(mlp_input)
+                x = x + mlp_output
+            else:
+                x = inputs
+                attention_output = self.causal_attention(x)
+                x = x + attention_output
+                x = self.layer_norm_1(x)
+                mlp_output = self.mlp(x)
+                x = x + mlp_output
+                x = self.layer_norm_2(x)
+            return x
         else:
             x = inputs
             x = self.layer_norm_1(x)
@@ -30,20 +45,20 @@ class TransformerDecoderBlock(nn.Module):
 class Embed(nn.Module):
     def __init__(self, vocab_size: int, embed_size: int, max_context_len):
         super().__init__()
-        self.token_embeddings = nn.Embedding(vocab_size, embed_size) # Embedded matrix needs 1 row for each vocab each in size of embed_size
-        self.position_embeddings = nn.Embedding(max_context_len, embed_size) # Needs one row per possible position up to the max_context each of size embed_size
+        self.token_embeddings = nn.Embedding(vocab_size, embed_size)
+        self.position_embeddings = nn.Embedding(max_context_len, embed_size) 
         self.max_context_len = max_context_len
 
     def forward(self, x):
         
         # x has the shape (b x n) where b is batch dimension and n is sequence length.
-        # each item is an int, indicating a vocabulary item.        
+        # each item is an int, indicating a vocabulary item.
+        # The output should be of shape (b x n x d), where d is the embedding dimension.
         b, n = x.shape
-        tok_embeddings = self.token_embeddings(x)# We embed it with the embedded matrix and get's dim of (b, n, d)
-        positions = torch.arange(n, device=x.device) # Created a list of numberd from 0 to the length of the sequence n-1, stores it on the same device as x to save overhead
-        pos_embeddings = self.position_embeddings(positions) # Attachs each token so it's position in the sequence (n, d)
-        return tok_embeddings + pos_embeddings  # Uses boardcasting and treats pos_embeddings as (1,n,d)
-        
+        tok_embeddings = self.token_embeddings(x) # We embed the input x with the embedding matrix and get it's dim of (b,n,d)
+        pos_embeddings = torch.arange(n, device=x.device) # A list of position from 0 to n-1
+        pos_embeddings = self.position_embeddings(pos_embeddings) # Attachs each token so it's position in the sequence (n, d)
+        return tok_embeddings + pos_embeddings # Uses boardcasting and treats pos_embeddings as (1,n,d)
 
 
 class TransformerLM(nn.Module):

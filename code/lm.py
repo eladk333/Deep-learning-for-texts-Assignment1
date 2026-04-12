@@ -4,20 +4,24 @@ from torch import nn
 import torch.nn.functional as F
 
 def batch_to_labeled_samples(batch: torch.IntTensor) -> [torch.IntTensor, torch.IntTensor]:
-    raise Exception("Not implemented.")
-    # TODO implement this.
     # The batches that we get from the reader have corpus-sequences of length max-context + 1.
     # We need to translate them to input/output examples, each of which is shorter by one.
     # That is, if our input is of dimension (b x n) our output is two tensors, each of dimension (b x n-1)
-    inputs = batch[:,:] # TODO fix this
-    labels = batch[:,:] # TODO fix this
+    inputs = batch[:,:-1] 
+    labels = batch[:,1:] 
     return (inputs, labels)
+   
 
 def compute_loss(logits, gold_labels):
     # logits size is (batch, seq_len, vocab_size)
     # gold_bales size is (batch, seq_len)
     # NOTE remember to handle padding (ignore them in loss calculation!)
     # NOTE cross-entropy expects other dimensions for logits
-    # NOTE you can either use cross_entropy from PyTorch, or implement the loss on your own.
-    return ...
+    # NOTE you can either use cross_entropy from PyTorch, or implement the loss on your own.'
+    vocab_size = logits.size(-1) # Gives the last dimension of the logits, which is the vocab size
+    flat_logits = logits.view(-1, vocab_size) # size is (b*seq_len, vocab_size)
+    flat_labels = gold_labels.view(-1) # size is (b*seq_len)
+    padding_id = 0
+    loss = F.cross_entropy(flat_logits, flat_labels, ignore_index=padding_id)
+    return loss
 
