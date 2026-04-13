@@ -1,6 +1,9 @@
 from __future__ import annotations
+import os
 
 import torch
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+print(f"Using device: {device}")
 
 if __name__ == "__main__":
     import lm
@@ -22,6 +25,9 @@ if __name__ == "__main__":
     gradient_clipping = 1.0
 
     num_batches_to_train = 50000
+    checkpoint_every = 1000
+    checkpoint_path = "checkpoints"
+    os.makedirs(checkpoint_path, exist_ok=True)
 
     tokenizer, tokenized_data = data.load_data(data_path)
     # NOTE: are data items are longer by one than the sequence length,
@@ -36,8 +42,13 @@ if __name__ == "__main__":
         tokenizer.vocab_size(),
         mlp_hidden_size,
         with_residuals=True,
-    )
-
+    ).to(device)
+    # Uncomment to resume from checkpoint:
+    # checkpoint = torch.load("checkpoints/checkpoint_1000.pt")
+    # model.load_state_dict(checkpoint['model_state_dict'])
+    # optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+    # num_batches = checkpoint['num_batches']
+    # print(f"Resumed from batch {num_batches}")
     optimizer = optim.AdamW(model.parameters(), lr=learning_rate, betas=[0.9, 0.95])
 
     model.train()
@@ -50,6 +61,8 @@ if __name__ == "__main__":
             num_batches = num_batches + 1
 
             batch_x, batch_y = lm.batch_to_labeled_samples(batch)
+            batch_x = batch_x.to(device)
+            batch_y = batch_y.to(device)
             # The apple is very pretty
             logits = model(batch_x)
 
@@ -62,9 +75,9 @@ if __name__ == "__main__":
             optimizer.step() # Updating the parameters with the optimizer the 'strategy to walk'
 
             num_batches += 1
-            if num_batches % 10 == 0:
+            if num_batches % 100 == 0:
                 print(f"Seen {num_batches} batches. last loss is: {loss.item()}")
-                if num_batches % 100 == 0:
+                if num_batches % 1000 == 0:
                     for _ in range(1):
                         model.eval()
                         sampled = tokenizer.detokenize(
@@ -72,4 +85,14 @@ if __name__ == "__main__":
                         )
                         model.train()
                         print(f"Model sample: '''{sampled}'''")
+
+                # Checkpoint save
+                if num_batches % checkpoint_every == 0:
+                    torch.save({
+                        'num_batches': num_batches,
+                        'model_state_dict': model.state_dict(),
+                        'optimizer_state_dict': optimizer.state_dict(),
+                        'loss': loss,
+                    }, f"{checkpoint_path}/checkpoint_{num_batches}.pt")
+                    print(f"Saved checkpoint at batch {num_batches}")
                     print("")
