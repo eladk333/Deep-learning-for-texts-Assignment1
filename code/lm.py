@@ -24,4 +24,4 @@ def compute_loss(logits, gold_labels):
     padding_id = 0
     loss = F.cross_entropy(flat_logits, flat_labels, ignore_index=padding_id)
     return loss
-
+    
