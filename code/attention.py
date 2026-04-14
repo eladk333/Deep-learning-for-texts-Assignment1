@@ -36,7 +36,7 @@ def create_causal_mask(embed_dim, n_heads, max_context_len):
     mask = mask.view(1, max_context_len, max_context_len)
     return mask
 
-def self_attention(v, A, mask = None):
+def self_attention(v, A, mask = None,attn_dropout=None, attention_score=None):
     if mask is not None:
         N = A.size(-1) 
         M = mask[:, :N, :N]
@@ -44,19 +44,23 @@ def self_attention(v, A, mask = None):
         A = A.masked_fill(M == 0, float("-inf"))
         
     attention_weights = F.softmax(A, dim=-1)
+    if attn_dropout is not None:
+        attention_weights = attn_dropout(attention_weights)
 
+    if attention_score is not None:
+        attention_score(attention_weights)
     sa = attention_weights @ v
 
     return sa
 
 
-def self_attention_layer(x, kqv_matrix, attention_mask):
+def self_attention_layer(x, kqv_matrix, attention_mask, attn_dropout=None):
     k, q, v = kqv(x, kqv_matrix)
     att = attention_scores(k, q)
-    sa = self_attention(v, att, attention_mask)
+    sa = self_attention(v, att, attention_mask, attn_dropout)
     return sa
 
-def multi_head_attention_layer(x, kqv_matrices, mask, out_matrix=None):
+def multi_head_attention_layer(x, kqv_matrices, mask, out_matrix=None, attn_dropout=None, attention_score=None):
     
     B, N, D = x.size()
 
@@ -64,9 +68,8 @@ def multi_head_attention_layer(x, kqv_matrices, mask, out_matrix=None):
 
     # Loop through each head's distinct linear layer
     for kqv_matrix in kqv_matrices:
-        sa_head = self_attention_layer(x, kqv_matrix, mask)
+        sa_head = self_attention_layer(x, kqv_matrix, mask, attn_dropout)
         head_outputs.append(sa_head)
-
     sa = torch.cat(head_outputs, dim=-1)
     
     assert sa.size() == x.size()
@@ -77,7 +80,7 @@ def multi_head_attention_layer(x, kqv_matrices, mask, out_matrix=None):
 
 
 class CausalSelfAttention(nn.Module):
-    def __init__(self, embed_dim, n_heads, max_context_len):
+    def __init__(self, embed_dim, n_heads, max_context_len, dropout=0.1):
         super().__init__()
         assert embed_dim % n_heads == 0
         # the linear layers used for k, q, v computations:
@@ -90,7 +93,8 @@ class CausalSelfAttention(nn.Module):
         self.register_buffer("mask", mask)
         self.n_heads = n_heads
         self.embed_dim = embed_dim
+        self.attn_dropout = nn.Dropout(dropout)
 
     def forward(self, x):
-        sa = multi_head_attention_layer(x, self.kqv_matrices, self.mask)
+        sa = multi_head_attention_layer(x, self.kqv_matrices, self.mask, out_matrix=self.out_proj, attn_dropout=self.attn_dropout)
         return sa
