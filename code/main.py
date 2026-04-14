@@ -1,5 +1,6 @@
 from __future__ import annotations
 import os
+os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 
 import torch
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -15,7 +16,7 @@ if __name__ == "__main__":
 
     seq_len = 128
     batch_size = 64
-    data_path = "../data/en/"
+    data_path = "../data/he/"
     n_layers = 6
     n_heads = 6
     embed_size = 192
@@ -27,7 +28,7 @@ if __name__ == "__main__":
 
     num_batches_to_train = 50000
     checkpoint_every = 1000
-    checkpoint_path = "checkpoints"
+    checkpoint_path = "checkpoints_he"
     os.makedirs(checkpoint_path, exist_ok=True)
 
     tokenizer, tokenized_data = data.load_data(data_path)
@@ -79,7 +80,7 @@ if __name__ == "__main__":
         for batch in data.batch_items(data_iter, batch_size):
             if num_batches >= num_batches_to_train:
                 break
-            num_batches = num_batches + 1
+            #num_batches = num_batches + 1
 
             batch_x, batch_y = lm.batch_to_labeled_samples(batch)
             batch_x = batch_x.to(device)

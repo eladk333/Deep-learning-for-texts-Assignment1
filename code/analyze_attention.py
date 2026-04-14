@@ -20,7 +20,7 @@ model = TransformerLM(
 ).to(device)
 
 # 3. Load your trained checkpoint
-checkpoint_path = "checkpoints/checkpoint_1000.pt" # Change to your latest checkpoint
+checkpoint_path = "checkpoints_en/checkpoint_50000.pt" # Change to your latest checkpoint
 checkpoint = torch.load(checkpoint_path, map_location=device)
 model.load_state_dict(checkpoint['model_state_dict'])
 
