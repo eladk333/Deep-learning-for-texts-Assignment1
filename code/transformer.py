@@ -14,6 +14,8 @@ class TransformerDecoderBlock(nn.Module):
         self.with_residuals = with_residuals
         self.norm_type = norm_type
 
+        self.resid_dropout = nn.Dropout(dropout)
+
     def forward(self, inputs, attention_score=None):
 
         if self.with_residuals:
@@ -96,7 +98,7 @@ class TransformerLM(nn.Module):
 
         x = self.layer_norm(x)
         logits = self.word_prediction(x)
-        
+
         if return_attention:
             return logits, attention_weights_list
         return logits
