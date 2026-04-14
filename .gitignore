@@ -82,3 +82,5 @@ local_settings.py
 
 # Caches
 .cache/
+en_checkpoints
+he_checkpoints
