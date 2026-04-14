@@ -14,20 +14,20 @@ class TransformerDecoderBlock(nn.Module):
         self.with_residuals = with_residuals
         self.norm_type = norm_type
 
-    def forward(self, inputs):
+    def forward(self, inputs, attention_score=None):
 
         if self.with_residuals:
             if(self.norm_type == "pre"):
                 x = inputs
                 attention_input = self.layer_norm_1(x) # 
-                attention_output = self.causal_attention(attention_input)
+                attention_output = self.causal_attention(attention_input, attention_score=attention_score)
                 x = x + self.resid_dropout(attention_output)
                 mlp_input = self.layer_norm_2(x)
                 mlp_output = self.mlp(mlp_input)
                 x = x + self.resid_dropout(mlp_output)
             else:
                 x = inputs
-                attention_output = self.causal_attention(x)
+                attention_output = self.causal_attention(x, attention_score=attention_score)
                 x = x + attention_output
                 x = self.layer_norm_1(x)
                 mlp_output = self.mlp(x)
@@ -37,7 +37,7 @@ class TransformerDecoderBlock(nn.Module):
         else:
             x = inputs
             x = self.layer_norm_1(x)
-            x = self.causal_attention(x)
+            x = self.causal_attention(x, attention_score=attention_score)
             x = self.layer_norm_2(x)
             x = self.mlp(x)
             return x
@@ -85,12 +85,20 @@ class TransformerLM(nn.Module):
         n_params = sum(p.numel() for p in self.parameters())
         print("Parameter count: %.2fM" % (n_params/1e6,))
 
-    def forward(self, inputs):
+    def forward(self, inputs, return_attention=False):
         x = self.embed(inputs)
+        attention_weights_list = []
+        def capture_attention(weights):
+            attention_weights_list.append(weights.detach().cpu())
+        cb = capture_attention if return_attention else None
         for layer in self.layers:
-            x = layer(x)
+            x = layer(x, attention_score=cb)
+
         x = self.layer_norm(x)
         logits = self.word_prediction(x)
+        
+        if return_attention:
+            return logits, attention_weights_list
         return logits
 
     def init_weights(self):

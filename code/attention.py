@@ -54,10 +54,10 @@ def self_attention(v, A, mask = None,attn_dropout=None, attention_score=None):
     return sa
 
 
-def self_attention_layer(x, kqv_matrix, attention_mask, attn_dropout=None):
+def self_attention_layer(x, kqv_matrix, attention_mask, attn_dropout=None, attention_score=None):
     k, q, v = kqv(x, kqv_matrix)
     att = attention_scores(k, q)
-    sa = self_attention(v, att, attention_mask, attn_dropout)
+    sa = self_attention(v, att, attention_mask, attn_dropout, attention_score=attention_score)
     return sa
 
 def multi_head_attention_layer(x, kqv_matrices, mask, out_matrix=None, attn_dropout=None, attention_score=None):
@@ -68,7 +68,7 @@ def multi_head_attention_layer(x, kqv_matrices, mask, out_matrix=None, attn_drop
 
     # Loop through each head's distinct linear layer
     for kqv_matrix in kqv_matrices:
-        sa_head = self_attention_layer(x, kqv_matrix, mask, attn_dropout)
+        sa_head = self_attention_layer(x, kqv_matrix, mask, attn_dropout, attention_score=attention_score)
         head_outputs.append(sa_head)
     sa = torch.cat(head_outputs, dim=-1)
     
@@ -95,6 +95,6 @@ class CausalSelfAttention(nn.Module):
         self.embed_dim = embed_dim
         self.attn_dropout = nn.Dropout(dropout)
 
-    def forward(self, x):
-        sa = multi_head_attention_layer(x, self.kqv_matrices, self.mask, out_matrix=self.out_proj, attn_dropout=self.attn_dropout)
+    def forward(self, x, attention_score=None):
+        sa = multi_head_attention_layer(x, self.kqv_matrices, self.mask, out_matrix=self.out_proj, attn_dropout=self.attn_dropout, attention_score=attention_score)
         return sa
