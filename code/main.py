@@ -25,7 +25,7 @@ if __name__ == "__main__":
     gradient_clipping = 1.0
     weight_decay = 0.1
 
-    num_batches_to_train = 50000
+    num_batches_to_train = 5000
     checkpoint_every = 1000
     checkpoint_path = "checkpoints_en"
     os.makedirs(checkpoint_path, exist_ok=True)
@@ -143,12 +143,10 @@ if __name__ == "__main__":
                         
                         v_logits = model(v_batch_x)
                         v_loss = lm.compute_loss(v_logits, v_batch_y)
-                        val_loss_sum += v_loss.item()
                         actual_eval_batches += 1
                 
-                avg_val_loss = val_loss_sum / actual_eval_batches
                 print(f"\n--- Validation at Batch {num_batches} ---")
-                print(f"Average Val Loss: {avg_val_loss:.4f}")
+                print(f"Val Loss: {v_loss.item():.4f}")
                 
                 # Sample text to see generation quality
                 sampled = tokenizer.detokenize(
@@ -157,13 +155,13 @@ if __name__ == "__main__":
                 print(f"Model sample: '''{sampled}'''\n")
                 
                 # Save only if it's the best validation loss we've seen
-                if avg_val_loss < best_val_loss:
-                    best_val_loss = avg_val_loss
+                if v_loss.item() < best_val_loss:
+                    best_val_loss = v_loss.item()
                     torch.save({
                         'num_batches': num_batches,
                         'model_state_dict': model.state_dict(),
                         'optimizer_state_dict': optimizer.state_dict(),
-                        'val_loss': avg_val_loss,
+                        'val_loss': v_loss.item(),
                     }, f"{checkpoint_path}/best_model.pt")
                     print(f"*** New best model saved! Val Loss: {best_val_loss:.4f} ***")
                 
