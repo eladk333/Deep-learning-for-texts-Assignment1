@@ -27,13 +27,17 @@ if __name__ == "__main__":
 
     num_batches_to_train = 50000
     checkpoint_every = 1000
-    checkpoint_path = "checkpoints"
+    checkpoint_path = "en_checkpoints"
     os.makedirs(checkpoint_path, exist_ok=True)
 
     tokenizer, tokenized_data = data.load_data(data_path)
-    # NOTE: are data items are longer by one than the sequence length,
-    # They will be shortened by 1 when converted to training examples.
-    data_iter = iter(data.RandomOrderDataIterator(tokenized_data, seq_len + 1))
+    
+    # TEMPORARY FIX: Use all data for both since the dataset is too small to split
+    train_data = tokenized_data
+    val_data = tokenized_data
+    
+    print(f"Total sequences: {len(tokenized_data)}. Training on {len(train_data)}, validating on {len(val_data)}.")
+
 
     model: torch.nn.Module = TransformerLM(
         n_layers,
@@ -73,47 +77,82 @@ if __name__ == "__main__":
 
 
     model.train()
-
     num_batches = 0
+    best_val_loss = float('inf') # Track the best loss for early stopping
+
     while True:
-        for batch in data.batch_items(data_iter, batch_size):
+        # ---> 1. RECREATE TRAIN ITERATOR HERE (Starts a new Epoch) <---
+        train_iter = iter(data.RandomOrderDataIterator(train_data, seq_len + 1))
+        
+        for batch in data.batch_items(train_iter, batch_size):
             if num_batches >= num_batches_to_train:
                 break
-            num_batches = num_batches + 1
-
+            
             batch_x, batch_y = lm.batch_to_labeled_samples(batch)
             batch_x = batch_x.to(device)
             batch_y = batch_y.to(device)
-            # The apple is very pretty
+            
             logits = model(batch_x)
-
             loss = lm.compute_loss(logits, batch_y)
 
             # parameters update
-            model.zero_grad() # Cleaning the gradient of parameters
-            loss.backward() # Backpropagation
-            torch.nn.utils.clip_grad_norm_(model.parameters(), gradient_clipping) # cliping to avoid exploding gradients
-            optimizer.step() # Updating the parameters with the optimizer the 'strategy to walk'
+            model.zero_grad() 
+            loss.backward() 
+            torch.nn.utils.clip_grad_norm_(model.parameters(), gradient_clipping) 
+            optimizer.step() 
 
             num_batches += 1
+            
+            # Print training loss frequently
             if num_batches % 100 == 0:
-                print(f"Seen {num_batches} batches. last loss is: {loss.item()}")
-                if num_batches % 1000 == 0:
-                    for _ in range(1):
-                        model.eval()
-                        sampled = tokenizer.detokenize(
-                            model.better_sample_continuation(tokenizer.tokenize("Hello"), 500, temperature=0.8, topK=5)
-                        )
-                        model.train()
-                        print(f"Model sample: '''{sampled}'''")
-
-                # Checkpoint save
-                if num_batches % checkpoint_every == 0:
+                print(f"Seen {num_batches} batches. Train loss is: {loss.item():.4f}")
+                
+            # ---> EVALUATION BLOCK <---
+            if num_batches % 500 == 0:
+                model.eval() # Switch to eval mode
+                val_loss_sum = 0.0
+                eval_batches = 50 
+                
+                # ---> 2. RECREATE VAL ITERATOR HERE (Reset validation data) <---
+                val_iter = iter(data.RandomOrderDataIterator(val_data, seq_len + 1))
+                
+                # Track how many batches we actually evaluate in case val data is small
+                actual_eval_batches = 0 
+                
+                with torch.no_grad(): 
+                    for i, val_batch in enumerate(data.batch_items(val_iter, batch_size)):
+                        if i >= eval_batches:
+                            break
+                        v_batch_x, v_batch_y = lm.batch_to_labeled_samples(val_batch)
+                        v_batch_x, v_batch_y = v_batch_x.to(device), v_batch_y.to(device)
+                        
+                        v_logits = model(v_batch_x)
+                        v_loss = lm.compute_loss(v_logits, v_batch_y)
+                        val_loss_sum += v_loss.item()
+                        actual_eval_batches += 1
+                
+                avg_val_loss = val_loss_sum / actual_eval_batches
+                print(f"\n--- Validation at Batch {num_batches} ---")
+                print(f"Average Val Loss: {avg_val_loss:.4f}")
+                
+                # Sample text to see generation quality
+                sampled = tokenizer.detokenize(
+                    model.better_sample_continuation(tokenizer.tokenize("Romeo"), 50, temperature=0.8, topK=5)
+                )
+                print(f"Model sample: '''{sampled}'''\n")
+                
+                # Save only if it's the best validation loss we've seen
+                if avg_val_loss < best_val_loss:
+                    best_val_loss = avg_val_loss
                     torch.save({
                         'num_batches': num_batches,
                         'model_state_dict': model.state_dict(),
                         'optimizer_state_dict': optimizer.state_dict(),
-                        'loss': loss,
-                    }, f"{checkpoint_path}/checkpoint_{num_batches}.pt")
-                    print(f"Saved checkpoint at batch {num_batches}")
-                    print("")
+                        'val_loss': avg_val_loss,
+                    }, f"{checkpoint_path}/best_model.pt")
+                    print(f"*** New best model saved! Val Loss: {best_val_loss:.4f} ***")
+                
+                model.train() # Switch back to training mode
+                
+        if num_batches >= num_batches_to_train:
+            break
