@@ -1,6 +1,5 @@
 from __future__ import annotations
 import os
-os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 
 import torch
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -16,7 +15,7 @@ if __name__ == "__main__":
 
     seq_len = 128
     batch_size = 64
-    data_path = "../data/he/"
+    data_path = "../data/en/"
     n_layers = 6
     n_heads = 6
     embed_size = 192
@@ -28,16 +27,31 @@ if __name__ == "__main__":
 
     num_batches_to_train = 50000
     checkpoint_every = 1000
-    checkpoint_path = "checkpoints_he"
+    checkpoint_path = "checkpoints_en"
     os.makedirs(checkpoint_path, exist_ok=True)
 
     tokenizer, tokenized_data = data.load_data(data_path)
     
-    # TEMPORARY FIX: Use all data for both since the dataset is too small to split
-    train_data = tokenized_data
-    val_data = tokenized_data
+    # Calculate the 90% split index
+    split_idx = int(len(tokenized_data) * 0.9)
+    train_tokens = tokenized_data[:split_idx]
+    val_tokens = tokenized_data[split_idx:]
     
-    print(f"Total sequences: {len(tokenized_data)}. Training on {len(train_data)}, validating on {len(val_data)}.")
+    # 3. Chunk into large logical blocks
+    chunk_size = 10000 
+    
+    train_data = [
+        train_tokens[i : i + chunk_size] 
+        for i in range(0, len(train_tokens), chunk_size)
+    ]
+    
+    val_data = [
+        val_tokens[i : i + chunk_size] 
+        for i in range(0, len(val_tokens), chunk_size)
+    ]
+    
+    print(f"Total tokens: {len(tokenized_data)}.")
+    print(f"Created {len(train_data)} training blocks and {len(val_data)} validation blocks (Max block size: {chunk_size} tokens).")
 
 
     model: torch.nn.Module = TransformerLM(
