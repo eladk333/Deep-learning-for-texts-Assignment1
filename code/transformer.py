@@ -5,7 +5,7 @@ import attention
 import mlp
 
 class TransformerDecoderBlock(nn.Module):
-    def __init__(self, n_heads: int, embed_size: int, mlp_hidden_size: int, max_context_len, with_residuals: bool = False, norm_type: str = "pre", dropout: float = 0.1):
+    def __init__(self, n_heads: int, embed_size: int, mlp_hidden_size: int, max_context_len, with_residuals: bool = False, norm_type: str = "pre", dropout: float = 0.3):
         super().__init__()
         self.causal_attention = attention.CausalSelfAttention(embed_size, n_heads, max_context_len)
         self.mlp = mlp.MLP(embed_size, mlp_hidden_size)
@@ -104,18 +104,17 @@ class TransformerLM(nn.Module):
         return logits
 
     def init_weights(self):
-        for pn, p in self.named_parameters():
-            if isinstance(p, nn.LayerNorm):
-                if p.bias is not None:
-                    torch.nn.init.zeros_(p.bias)
-                torch.nn.init.ones_(p.weight)
-            elif isinstance(p, nn.Linear):
-                torch.nn.init.normal_(p.weight, mean=0.0, std=0.02)
-                if p.bias is not None:
-                    torch.nn.init.zeros_(p.bias)
-            elif isinstance(p, nn.Embedding):
-                torch.nn.init.normal_(p.weight, mean=0.0, std=0.02)
-
+        for module in self.modules():
+            if isinstance(module, nn.Linear):
+                torch.nn.init.normal_(module.weight, mean=0.0, std=0.02)
+                if module.bias is not None:
+                    torch.nn.init.zeros_(module.bias)
+            elif isinstance(module, nn.Embedding):
+                torch.nn.init.normal_(module.weight, mean=0.0, std=0.02)
+            elif isinstance(module, nn.LayerNorm):
+                if module.bias is not None:
+                    torch.nn.init.zeros_(module.bias)
+                torch.nn.init.ones_(module.weight)
 
     def sample_continuation(self, prefix: list[int], max_tokens_to_generate: int) -> list[int]:
         feed_to_lm = prefix[:]
