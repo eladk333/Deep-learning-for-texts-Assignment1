@@ -75,7 +75,7 @@ The visualizations confirm that the first layer of this character-level transfor
 * **Finding 3: Attention Sinks (Heads 4 and 7):** Heads 4 and 7 exhibit classic "attention sink" behavior. Both display a dominant, solid vertical band on the very first token ('נ'). Because the softmax operation forces attention weights to sum to 1.0, these heads dump their unused attention mass onto the sequence's origin point when they are not actively triggered by other specific linguistic features.
 * **Finding 4: Structural Boundary Anchoring (Head 2):** Head 2 shows a highly specific structural behavior. It maintains low attention until it encounters the hyphen ('-') and the subsequent letters of "ישראל", at which point it forms a bright vertical band. This suggests the head is tracking compound word boundaries or specific punctuation constraints to maintain the context of the current clause.
 
-![Layer 0 Attention Heatmap for Hebrew](hebrew_sentence_from_the dataset_heatmap.png)
+![Layer 0 Attention Heatmap for Hebrew](hebrew_sentence_from_the_dataset_heatmap.png)
 
 **Out-of-Distribution (Modern Hebrew) Analysis**
 
