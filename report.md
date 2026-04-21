@@ -4,7 +4,7 @@
 * **Final Training Loss:** 1.1653
 * **Final Average Evaluation Loss:** 1.2900
 * **Total Updates:** 20,000
-* **Training Sequences Seen:** 1.28M
+* **Training Sequences Seen:** 1.28M ($20,000 \text{ batches} \times 64 \text{ batch size}$)
 * **Network Parameters:** 1.24M
 
 **2. Hyperparameters Used**
@@ -55,6 +55,7 @@ The visualizations confirm that the first layer of this character-level transfor
 
 **4. Hebrew Data Observations**
 * **Final Loss:** Final Training Loss: 1.5405 | Lowest Validation Loss: 1.8497 (at batch 9000).
+* Training Sequences Seen (at convergence): 576,000 ($9,000 \text{ batches} \times 64 \text{ batch size}$)
 * **Parameters:** We maintained the core architecture from the English model (10 layers, 10 heads, 100 embedding dimension), but reduced the dropout to 0.1 to prevent underfitting and achieve the best validation score.
 * **Observations:** The Hebrew model converged significantly faster than the English model, hitting its lowest validation loss at batch 9,000 (compared to batch 14,000 for English). While it converged faster, its overall validation loss plateaued higher than the English model (1.84 vs 1.27). We noticed that the output quality correlated well with the loss; around a loss of 2.0, the model started forming valid 3-4 letter Hebrew words, and below 1.7, it began mimicking the poetic line breaks present in the Bialik and Rachel dataset.
 
