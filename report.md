@@ -58,14 +58,13 @@ The visualizations confirm that the first layer of this character-level transfor
 * **Parameters:** We maintained the core architecture from the English model (10 layers, 10 heads, 100 embedding dimension), but reduced the dropout to 0.1 to prevent underfitting and achieve the best validation score.
 * **Observations:** The Hebrew model converged significantly faster than the English model, hitting its lowest validation loss at batch 9,000 (compared to batch 14,000 for English). While it converged faster, its overall validation loss plateaued higher than the English model (1.84 vs 1.27). We noticed that the output quality correlated well with the loss; around a loss of 2.0, the model started forming valid 3-4 letter Hebrew words, and below 1.7, it began mimicking the poetic line breaks present in the Bialik and Rachel dataset.
 
+* **Robustness and Memorization Check:**
+  * **Context:** Upon inspecting the tokenized Hebrew dataset (Bialik and Rachel poems), we identified anomalous out-of-distribution characters, specifically English (Latin) and Russian (Cyrillic) letters. These were likely included due to metadata, typos, or noisy data artifacts in the original text files.
+  * **Methodology:** To determine if the model had overfitted and memorized these noisy sequences (which would indicate poor generalization), we conducted a targeted stress test. We prompted the model with multiple contexts—ranging from in-distribution classical Hebrew phrases to out-of-distribution modern Hebrew sentences—and forced it to generate large blocks of text (500 tokens per prompt). We then programmatically scanned the generated outputs for any foreign characters.
+  * **Findings & Conclusion:** The model output zero English or Russian characters across all generations, strictly adhering to standard Hebrew text and punctuation. This strongly indicates that the model successfully generalized the core structural and syntactic rules of the Hebrew language rather than simply memorizing exact, noisy data chunks. The foreign characters present in the training set remained appropriately marginalized as extremely low-probability events, demonstrating the model's robust resistance to dataset noise.
+
+
 **5. Analysis / Interpretability (Part 5)**
-* **Methodology:** We modified the `self_attention` forward pass to append the attention probability matrices to a list. we then passed the phrase "The apple is very pretty" through the model and visualized the matrices using `matplotlib` heatmaps.
-* **Finding:** We found that **Layer 2, Head 1** acts strongly as a "Previous Character Monitor."
-* **Evidence:** In the heatmap for this head, the highest attention probabilities (represented by the brightest colors) consistently form a solid diagonal line exactly one index below the main diagonal. This indicates the head is almost exclusively looking one step backward to predict the next token. 
-
-*[Insert your heatmap screenshot/image here]*
-
-### 5. Analysis / Interpretability (Part 5)
 
 **Hebrew Model Interpretability Analysis**
 
@@ -74,6 +73,7 @@ The visualizations confirm that the first layer of this character-level transfor
 * **Finding 2: The Self-Attention Anchor (Head 3):** Head 3 produces a razor-sharp line directly on the main diagonal. This indicates an almost exclusive focus on the current token being processed. This mechanism isolates the raw embedding of the current character to pass it forward to the next layer intact, without mixing it with surrounding context.
 * **Finding 3: Attention Sinks (Heads 4 and 7):** Heads 4 and 7 exhibit classic "attention sink" behavior. Both display a dominant, solid vertical band on the very first token ('נ'). Because the softmax operation forces attention weights to sum to 1.0, these heads dump their unused attention mass onto the sequence's origin point when they are not actively triggered by other specific linguistic features.
 * **Finding 4: Structural Boundary Anchoring (Head 2):** Head 2 shows a highly specific structural behavior. It maintains low attention until it encounters the hyphen ('-') and the subsequent letters of "ישראל", at which point it forms a bright vertical band. This suggests the head is tracking compound word boundaries or specific punctuation constraints to maintain the context of the current clause.
+* **Finding 5: Cross-Language Consistency (English Test):** To verify if these behaviors were universal, we tested the English phrase "The apple is very pretty" on the English model. We found that **Layer 2, Head 1** also acted as a "Previous Character Monitor," showing that the transformer architecture naturally defaults to these positional tracking mechanisms across different languages and training sets.
 
 ![Layer 0 Attention Heatmap for Hebrew](hebrew_sentence_from_the dataset_heatmap.png)
 
