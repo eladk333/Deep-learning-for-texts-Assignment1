@@ -75,7 +75,7 @@ The visualizations confirm that the first layer of this character-level transfor
 * **Finding 4: Structural Boundary Anchoring (Head 2):** Head 2 shows a highly specific structural behavior. It maintains low attention until it encounters the hyphen ('-') and the subsequent letters of "ישראל", at which point it forms a bright vertical band. This suggests the head is tracking compound word boundaries or specific punctuation constraints to maintain the context of the current clause.
 * **Finding 5: Cross-Language Consistency (English Test):** To verify if these behaviors were universal, we tested the English phrase "The apple is very pretty" on the English model. We found that **Layer 2, Head 1** also acted as a "Previous Character Monitor," showing that the transformer architecture naturally defaults to these positional tracking mechanisms across different languages and training sets.
 
-![Layer 0 Attention Heatmap for Hebrew](hebrew_sentence_from_the dataset_heatmap.png)
+![Layer 0 Attention Heatmap for Hebrew](hebrew_sentence_from_the_dataset_heatmap.png)
 
 **Out-of-Distribution (Modern Hebrew) Analysis**
 
