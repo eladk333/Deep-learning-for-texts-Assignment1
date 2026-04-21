@@ -54,9 +54,9 @@ These remaining heads display a diffused, triangular fade stretching downward fr
 The visualizations confirm that the first layer of this character-level transformer heavily partitions its subspace to solve basic structural problems. It isolates local chunking (Heads 0, 1, 4, 5, 7), explicit positional tracking (Head 8), structural boundaries (Heads 2, 6), and identity preservation (Head 3), providing a stable foundation for deeper layers to process higher-level language patterns.
 
 **4. Hebrew Data Observations**
-* **Final Loss:** [Insert loss, e.g., 1.62] 
-* **Parameters:** We used the exact same hyperparameters as the English model.
-* **Observations:** The Hebrew model achieved a lower loss in fewer batches than the English model. We noticed that the output quality correlated well with the loss; around a loss of 2.0, the model started forming valid 3-4 letter Hebrew words, and below 1.7, it began mimicking the poetic line breaks present in the Bialik and Rachel dataset.
+* **Final Loss:** Final Training Loss: 1.5405 | Lowest Validation Loss: 1.8497 (at batch 9000).
+* **Parameters:** We maintained the core architecture from the English model (10 layers, 10 heads, 100 embedding dimension), but reduced the dropout to 0.1 to prevent underfitting and achieve the best validation score.
+* **Observations:** The Hebrew model converged significantly faster than the English model, hitting its lowest validation loss at batch 9,000 (compared to batch 14,000 for English). While it converged faster, its overall validation loss plateaued higher than the English model (1.84 vs 1.27). We noticed that the output quality correlated well with the loss; around a loss of 2.0, the model started forming valid 3-4 letter Hebrew words, and below 1.7, it began mimicking the poetic line breaks present in the Bialik and Rachel dataset.
 
 **5. Analysis / Interpretability (Part 5)**
 * **Methodology:** We modified the `self_attention` forward pass to append the attention probability matrices to a list. we then passed the phrase "The apple is very pretty" through the model and visualized the matrices using `matplotlib` heatmaps.
@@ -64,6 +64,27 @@ The visualizations confirm that the first layer of this character-level transfor
 * **Evidence:** In the heatmap for this head, the highest attention probabilities (represented by the brightest colors) consistently form a solid diagonal line exactly one index below the main diagonal. This indicates the head is almost exclusively looking one step backward to predict the next token. 
 
 *[Insert your heatmap screenshot/image here]*
+
+### 5. Analysis / Interpretability (Part 5)
+
+**Hebrew Model Interpretability Analysis**
+
+* **Methodology:** We adapted the attention analysis script to load the Hebrew dataset tokenizer and our best-performing Hebrew checkpoint (Validation Loss: 1.8497). We passed a sample sentence from the training dataset ("ניצוץ אור של בת-ישראל.") through the model and visualized the attention probability matrices for Layer 0 using `seaborn` heatmaps.
+* **Finding 1: The Previous-Character Monitor (Head 1):** Similar to the English model, we found that Layer 0, Head 1 acts strictly as a "Previous Character Monitor." The heatmap displays a solid, bright diagonal line shifted exactly one index below the main diagonal. This confirms that the model quickly learns local, sequential character dependencies (n-gram transitions) as a foundational step, regardless of the language's structural rules or Right-to-Left (RTL) nature.
+* **Finding 2: The Self-Attention Anchor (Head 3):** Head 3 produces a razor-sharp line directly on the main diagonal. This indicates an almost exclusive focus on the current token being processed. This mechanism isolates the raw embedding of the current character to pass it forward to the next layer intact, without mixing it with surrounding context.
+* **Finding 3: Attention Sinks (Heads 4 and 7):** Heads 4 and 7 exhibit classic "attention sink" behavior. Both display a dominant, solid vertical band on the very first token ('נ'). Because the softmax operation forces attention weights to sum to 1.0, these heads dump their unused attention mass onto the sequence's origin point when they are not actively triggered by other specific linguistic features.
+* **Finding 4: Structural Boundary Anchoring (Head 2):** Head 2 shows a highly specific structural behavior. It maintains low attention until it encounters the hyphen ('-') and the subsequent letters of "ישראל", at which point it forms a bright vertical band. This suggests the head is tracking compound word boundaries or specific punctuation constraints to maintain the context of the current clause.
+
+![Layer 0 Attention Heatmap for Hebrew](hebrew_sentence_from_the dataset_heatmap.png)
+
+**Out-of-Distribution (Modern Hebrew) Analysis**
+
+* **Methodology:** To test the model's robustness, we passed a modern, conversational Hebrew sentence that does not exist in the classical training dataset: "התפוח מאוד יפה" (The apple is very pretty). We visualized the resulting Layer 0 attention matrices to see how the model handles out-of-distribution (OOD) syntax. *(Note: The visualization library renders the Hebrew characters left-to-right on the axes, but the token sequence remains intact).*
+* **Finding 1: Breakdown of Local Structure (Heads 1 & 3):** In the in-distribution Bialik text, Head 1 was a strict "Previous Character Monitor" (sharp off-diagonal line) and Head 3 was a "Self-Attention Anchor" (sharp main diagonal). In this modern sentence, those crisp lines are heavily blurred and fragmented. The model struggles to confidently link consecutive characters, causing the attention probability mass to "smear" across adjacent tokens rather than isolating them cleanly.
+* **Finding 2: Over-reliance on the Attention Sink (Heads 0, 4, 5, 7, 9):** When the model does not recognize familiar structural patterns, it defaults to dumping its attention mass onto the first token. Here, we see massive, thick vertical bands on the initial 'ה' (the definite article "The"). Because the model lacks predictive confidence in the modern phrasing, multiple heads fall back on this "safe" origin point.
+* **Finding 3: Diffuse / "Panicked" Attention (Heads 2 & 6):** Unlike the highly specific structural anchoring seen in the training data, Heads 2 and 6 exhibit blocky, diffuse checkerboard patterns. The model is attempting to chunk the word boundaries (like the spaces around "מאוד"), but because the vocabulary and spacing don't match the poetic rhythm it was trained on, the attention is scattered uniformly across whole sections of the word rather than pinning to specific grammatical anchors.
+
+![Layer 0 Attention Heatmap for Out-of-Distribution Hebrew](Hebrew_not_from_dataset.png)
 
 **6. Project Experience**
 Implementing the causal mask and ensuring the dimensions lined up for the multi-head attention concatenation was the most challenging part of the coding process. However, building the training loop and finally watching the loss drop below 2.0 while generating recognizable English words was highly rewarding.
